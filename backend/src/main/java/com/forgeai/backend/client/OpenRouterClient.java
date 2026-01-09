@@ -3,6 +3,8 @@ package com.forgeai.backend.client;
 import com.forgeai.backend.dto.ai.OpenRouterRequest;
 import com.forgeai.backend.dto.ai.OpenRouterResponse;
 import com.forgeai.backend.config.OpenRouterProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -10,6 +12,7 @@ import org.springframework.web.client.RestTemplate;
 @Component
 public class OpenRouterClient {
 
+    private static final Logger logger = LoggerFactory.getLogger(OpenRouterClient.class);
     private final RestTemplate restTemplate;
     private final OpenRouterProperties properties;
 
@@ -21,6 +24,7 @@ public class OpenRouterClient {
     public String generate(String prompt) {
         String apiKey = properties.getKey();
         String apiUrl = properties.getUrl();
+        logger.error("USING KEY PREFIX = {}", apiKey.substring(0, 10));
 
         if (apiKey == null || apiKey.isBlank()) {
             throw new RuntimeException("OpenRouter API key is not configured");
