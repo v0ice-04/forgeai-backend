@@ -7,6 +7,7 @@ public class GenerateRequest {
     private String description;
     private String category;
     private List<String> sections;
+    private String tech;
 
     // Getters and Setters
     public String getProjectName() {
@@ -39,5 +40,13 @@ public class GenerateRequest {
 
     public void setSections(List<String> sections) {
         this.sections = sections;
+    }
+
+    public String getTech() {
+        return tech;
+    }
+
+    public void setTech(String tech) {
+        this.tech = tech;
     }
 }

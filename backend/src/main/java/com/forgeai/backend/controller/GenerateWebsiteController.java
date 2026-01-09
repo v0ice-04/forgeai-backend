@@ -8,16 +8,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "*")
-public class GenerateController {
+public class GenerateWebsiteController {
 
     private final GenerateService generateService;
 
-    public GenerateController(GenerateService generateService) {
+    public GenerateWebsiteController(GenerateService generateService) {
         this.generateService = generateService;
     }
 
-    @PostMapping("/generate")
-    public GenerateResponse generate(@RequestBody GenerateRequest request) {
+    @PostMapping("/generate-website")
+    public GenerateResponse generateWebsite(@RequestBody GenerateRequest request) {
         return generateService.generateProject(request);
     }
 }
