@@ -15,7 +15,7 @@ import java.util.List;
 public class FileStorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(FileStorageService.class);
-    private static final String BASE_FOLDER = "generated";
+    private static final String BASE_FOLDER = "generated-projects";
 
     public void saveProjectFiles(String projectId, List<GenerateResponse.GeneratedFile> files) {
         Path projectDirPath = Paths.get(BASE_FOLDER, projectId);
