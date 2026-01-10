@@ -1,6 +1,7 @@
 package com.forgeai.backend.controller;
 
 import com.forgeai.backend.service.FileStorageService;
+import com.forgeai.backend.service.ZipService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.HandlerMapping;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -26,9 +28,11 @@ public class PreviewController {
 
     private static final Logger logger = LoggerFactory.getLogger(PreviewController.class);
     private final FileStorageService fileStorageService;
+    private final ZipService zipService;
 
-    public PreviewController(FileStorageService fileStorageService) {
+    public PreviewController(FileStorageService fileStorageService, ZipService zipService) {
         this.fileStorageService = fileStorageService;
+        this.zipService = zipService;
     }
 
     @GetMapping("/{projectId}/preview/**")
@@ -107,19 +111,26 @@ public class PreviewController {
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 
-    /**
-     * MANUAL VERIFICATION (using curl):
-     * 1. Generate a project:
-     * curl -X POST http://localhost:8080/api/generate \
-     * -H "Content-Type: application/json" \
-     * -d '{"projectName":"TestSite","description":"A simple test
-     * site","category":"Web","sections":["hero","footer"],"tech":"vanilla"}'
-     * (Note the projectId from response)
-     * 
-     * 2. Preview index.html:
-     * curl http://localhost:8080/api/projects/{projectId}/preview
-     * 
-     * 3. Preview other files:
-     * curl http://localhost:8080/api/projects/{projectId}/preview/style.css
-     */
+    @GetMapping("/{projectId}/download")
+    public ResponseEntity<Resource> downloadProject(@PathVariable String projectId) {
+        try {
+            Path zipFilePath = Paths.get("generated", projectId + ".zip");
+            
+            if (!Files.exists(zipFilePath)) {
+                logger.warn("ZIP file not found for project: {}", projectId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            Resource resource = new FileSystemResource(zipFilePath);
+            
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, 
+                            "attachment; filename=\"" + projectId + ".zip\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/zip")
+                    .body(resource);
+        } catch (Exception e) {
+            logger.error("Download error for project {}", projectId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }

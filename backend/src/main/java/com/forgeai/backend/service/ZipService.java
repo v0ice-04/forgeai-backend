@@ -15,15 +15,25 @@ import java.util.zip.ZipOutputStream;
 public class ZipService {
 
     private static final Logger logger = LoggerFactory.getLogger(ZipService.class);
-    private static final String BASE_FOLDER = "generated";
+    private static final String BASE_FOLDER = "generated-projects";
+    private static final String ZIP_FOLDER = "generated";
 
     public void zipProject(String projectId) {
         Path sourceDirPath = Paths.get(BASE_FOLDER, projectId);
-        Path zipFilePath = Paths.get(BASE_FOLDER, projectId + ".zip");
+        Path zipDirPath = Paths.get(ZIP_FOLDER);
+        Path zipFilePath = Paths.get(ZIP_FOLDER, projectId + ".zip");
 
         if (!Files.exists(sourceDirPath)) {
             logger.error("Source directory does not exist: {}", sourceDirPath.toAbsolutePath());
             return;
+        }
+
+        // Create zip directory if it doesn't exist
+        try {
+            Files.createDirectories(zipDirPath);
+        } catch (IOException e) {
+            logger.error("Failed to create zip directory: {}", e.getMessage());
+            throw new RuntimeException("Could not create zip directory", e);
         }
 
         try (FileOutputStream fos = new FileOutputStream(zipFilePath.toFile());
@@ -32,20 +42,13 @@ public class ZipService {
             Files.walkFileTree(sourceDirPath, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    // Create relative path for the zip entry
-                    String relativePath = sourceDirPath.relativize(file).toString().replace("\\", "/");
-                    zos.putNextEntry(new ZipEntry(relativePath));
-                    Files.copy(file, zos);
-                    zos.closeEntry();
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    // Add directory entry to zip if it's not the root source dir
-                    if (!sourceDirPath.equals(dir)) {
-                        String relativePath = sourceDirPath.relativize(dir).toString().replace("\\", "/") + "/";
+                    // Only include HTML, CSS, and JS files
+                    String fileName = file.getFileName().toString().toLowerCase();
+                    if (fileName.endsWith(".html") || fileName.endsWith(".css") || fileName.endsWith(".js")) {
+                        // Create relative path for the zip entry (flatten to root)
+                        String relativePath = file.getFileName().toString();
                         zos.putNextEntry(new ZipEntry(relativePath));
+                        Files.copy(file, zos);
                         zos.closeEntry();
                     }
                     return FileVisitResult.CONTINUE;

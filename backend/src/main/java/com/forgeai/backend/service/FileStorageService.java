@@ -6,9 +6,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -47,5 +52,37 @@ public class FileStorageService {
 
     public Path getBaseFolder() {
         return Paths.get(BASE_FOLDER);
+    }
+
+    public List<GenerateResponse.GeneratedFile> loadProjectFiles(String projectId) {
+        Path projectRoot = getProjectRoot(projectId);
+        
+        if (!Files.exists(projectRoot)) {
+            logger.warn("Project directory does not exist: {}", projectRoot);
+            return Collections.emptyList();
+        }
+        
+        List<GenerateResponse.GeneratedFile> files = new ArrayList<>();
+        
+        try {
+            Files.walkFileTree(projectRoot, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    // Only load HTML, CSS, and JS files
+                    String fileName = file.getFileName().toString().toLowerCase();
+                    if (fileName.endsWith(".html") || fileName.endsWith(".css") || fileName.endsWith(".js")) {
+                        String relativePath = projectRoot.relativize(file).toString().replace("\\", "/");
+                        String content = Files.readString(file);
+                        files.add(new GenerateResponse.GeneratedFile(relativePath, content));
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            logger.error("Failed to load project files for projectId {}: {}", projectId, e.getMessage());
+            throw new RuntimeException("Could not load project files", e);
+        }
+        
+        return files;
     }
 }

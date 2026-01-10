@@ -44,6 +44,9 @@ public class GenerateService {
 
             GeneratedFilesWrapper wrapper = objectMapper.readValue(cleanedJson, GeneratedFilesWrapper.class);
 
+            // VALIDATE: Must have exactly 3 files: index.html, styles.css, script.js
+            validateFiles(wrapper.files());
+
             // SAVE FILES TO DISK
             fileStorageService.saveProjectFiles(projectId, wrapper.files());
 
@@ -94,48 +97,264 @@ public class GenerateService {
     }
 
     private String buildPrompt(GenerateRequest request) {
-        String techStack = "react".equalsIgnoreCase(request.getTech()) ? "React + Tailwind CSS" : "HTML + Vanilla CSS";
-
         return String.format(
-                "You are an autonomous code generation engine.\n" +
+                "You are ForgeAI, an expert senior web product designer and frontend architect.\n" +
                         "\n" +
-                        "CRITICAL INSTRUCTION: You MUST return ONLY valid, raw JSON.\n" +
-                        "- DO NOT include any markdown code blocks (no ```json or ```).\n" +
-                        "- DO NOT include any explanations, greetings, or text before or after the JSON.\n" +
-                        "- DO NOT include comments inside the JSON.\n" +
-                        "- Provide the EXACT JSON structure below.\n" +
+                        "You generate complete production-quality websites using:\n" +
+                        "- HTML\n" +
+                        "- CSS\n" +
+                        "- Vanilla JavaScript only\n" +
                         "\n" +
-                        "REQUIRED JSON FORMAT:\n" +
+                        "📦 OUTPUT FORMAT (MANDATORY JSON)\n" +
+                        "Always respond in this exact format:\n" +
                         "{\n" +
-                        "  \"projectName\": \"%s\",\n" +
                         "  \"files\": [\n" +
-                        "    {\n" +
-                        "      \"path\": \"relative/path/to/file\",\n" +
-                        "      \"content\": \"Full file content here\"\n" +
-                        "    }\n" +
+                        "    { \"path\": \"index.html\", \"content\": \"...\" },\n" +
+                        "    { \"path\": \"styles.css\", \"content\": \"...\" },\n" +
+                        "    { \"path\": \"script.js\", \"content\": \"...\" }\n" +
                         "  ]\n" +
                         "}\n" +
+                        "\n" +
+                        "No markdown. No explanations. No backticks.\n" +
+                        "\n" +
+                        "🏗️ WEBSITE STRUCTURE (MANDATORY)\n" +
+                        "Every website MUST include:\n" +
+                        "- Sticky header with nav\n" +
+                        "- Hero section with CTA\n" +
+                        "- Features / Services section (3–6 cards)\n" +
+                        "- About section\n" +
+                        "- Benefits / Why Choose Us section\n" +
+                        "- Call-to-action section\n" +
+                        "- Footer with:\n" +
+                        "  - Links\n" +
+                        "  - Copyright\n" +
+                        "  - Text: Built with ForgeAI\n" +
+                        "\n" +
+                        "🎨 DESIGN RULES\n" +
+                        "Must look modern startup / SaaS quality\n" +
+                        "Must include:\n" +
+                        "- Cards\n" +
+                        "- Shadows\n" +
+                        "- Gradients\n" +
+                        "- Hover animations\n" +
+                        "- Scroll animations\n" +
+                        "- Section reveal animations\n" +
+                        "- Fully responsive\n" +
+                        "\n" +
+                        "🧠 CONTENT RULES\n" +
+                        "Use the user's idea as the business theme\n" +
+                        "Write realistic professional marketing content\n" +
+                        "No lorem ipsum\n" +
+                        "No placeholders\n" +
+                        "No \"Hello world\"\n" +
+                        "\n" +
+                        "⚙️ INTERACTIVITY RULES\n" +
+                        "Must include:\n" +
+                        "- Smooth scrolling\n" +
+                        "- Navbar scroll effect\n" +
+                        "- Button hover animations\n" +
+                        "- Section reveal animation\n" +
+                        "- Simple JS animations\n" +
+                        "\n" +
+                        "🧱 TECH RULES\n" +
+                        "❌ No React\n" +
+                        "❌ No Tailwind\n" +
+                        "❌ No Bootstrap\n" +
+                        "❌ No frameworks\n" +
+                        "❌ No external JS or CSS libraries\n" +
+                        "❌ No CDN dependencies\n" +
+                        "\n" +
+                        "🏷️ BRANDING RULE\n" +
+                        "If user asks who you are or who built this:\n" +
+                        "Always say:\n" +
+                        "I am ForgeAI, an AI website builder created by the ForgeAI team.\n" +
+                        "\n" +
+                        "🧨 HARD FAIL CONDITIONS\n" +
+                        "Do NOT return code fences\n" +
+                        "Do NOT return explanations\n" +
+                        "Do NOT return markdown\n" +
+                        "Do NOT return partial files\n" +
                         "\n" +
                         "PROJECT DETAILS:\n" +
                         "Name: %s\n" +
                         "Description: %s\n" +
                         "Category: %s\n" +
                         "Features/Sections: %s\n" +
-                        "Technology Stack: %s\n" +
                         "\n" +
-                        "Strict Rules:\n" +
-                        "1. All files must be complete and ready to deploy.\n" +
-                        "2. Include index.html (or appropriate entry point for the stack).\n" +
-                        "3. Ensure all code is professional and follows modern best practices.\n" +
-                        "4. Use proper escaping for double quotes and newlines in the JSON content values.",
-                request.getProjectName(),
+                        "Use proper escaping for double quotes and newlines in the JSON content values.",
                 request.getProjectName(),
                 request.getDescription(),
                 request.getCategory(),
-                String.join(", ", request.getSections()),
-                techStack);
+                String.join(", ", request.getSections()));
     }
 
-    private record GeneratedFilesWrapper(String projectName, List<GenerateResponse.GeneratedFile> files) {
+    public GenerateResponse editProject(String projectId, String userInstruction) {
+        try {
+            // Load current files
+            List<GenerateResponse.GeneratedFile> currentFiles = fileStorageService.loadProjectFiles(projectId);
+            
+            // Build edit prompt
+            String prompt = buildEditPrompt(currentFiles, userInstruction);
+            
+            // Generate updated files
+            String aiResult = openRouterClient.generate(prompt);
+            
+            logger.info("===== RAW AI EDIT RESPONSE START =====");
+            logger.info(aiResult);
+            logger.info("===== RAW AI EDIT RESPONSE END =====");
+            
+            String cleanedJson = cleanAiJson(aiResult);
+            GeneratedFilesWrapper wrapper = objectMapper.readValue(cleanedJson, GeneratedFilesWrapper.class);
+            
+            // VALIDATE: Must have exactly 3 files: index.html, styles.css, script.js
+            validateFiles(wrapper.files());
+            
+            // SAVE UPDATED FILES TO DISK
+            fileStorageService.saveProjectFiles(projectId, wrapper.files());
+            
+            // UPDATE ZIP
+            zipService.zipProject(projectId);
+            
+            return new GenerateResponse(
+                    true,
+                    "Project updated successfully",
+                    projectId,
+                    wrapper.files());
+        } catch (Exception e) {
+            logger.error("PRODUCTION ERROR: Failed to edit project. Error: {}", e.getMessage());
+            return new GenerateResponse(false, "Failed to edit project: " + e.getMessage(), projectId,
+                    Collections.emptyList());
+        }
+    }
+
+    private String buildEditPrompt(List<GenerateResponse.GeneratedFile> currentFiles, String userInstruction) {
+        StringBuilder filesContext = new StringBuilder();
+        for (GenerateResponse.GeneratedFile file : currentFiles) {
+            filesContext.append("\n--- ").append(file.getPath()).append(" ---\n");
+            filesContext.append(file.getContent());
+            filesContext.append("\n");
+        }
+        
+        return String.format(
+                "You are ForgeAI, an expert senior web product designer and frontend architect.\n" +
+                        "\n" +
+                        "You generate complete production-quality websites using:\n" +
+                        "- HTML\n" +
+                        "- CSS\n" +
+                        "- Vanilla JavaScript only\n" +
+                        "\n" +
+                        "📦 OUTPUT FORMAT (MANDATORY JSON)\n" +
+                        "Always respond in this exact format:\n" +
+                        "{\n" +
+                        "  \"files\": [\n" +
+                        "    { \"path\": \"index.html\", \"content\": \"...\" },\n" +
+                        "    { \"path\": \"styles.css\", \"content\": \"...\" },\n" +
+                        "    { \"path\": \"script.js\", \"content\": \"...\" }\n" +
+                        "  ]\n" +
+                        "}\n" +
+                        "\n" +
+                        "No markdown. No explanations. No backticks.\n" +
+                        "\n" +
+                        "🏗️ WEBSITE STRUCTURE (MANDATORY)\n" +
+                        "Every website MUST include:\n" +
+                        "- Sticky header with nav\n" +
+                        "- Hero section with CTA\n" +
+                        "- Features / Services section (3–6 cards)\n" +
+                        "- About section\n" +
+                        "- Benefits / Why Choose Us section\n" +
+                        "- Call-to-action section\n" +
+                        "- Footer with:\n" +
+                        "  - Links\n" +
+                        "  - Copyright\n" +
+                        "  - Text: Built with ForgeAI\n" +
+                        "\n" +
+                        "🎨 DESIGN RULES\n" +
+                        "Must look modern startup / SaaS quality\n" +
+                        "Must include:\n" +
+                        "- Cards\n" +
+                        "- Shadows\n" +
+                        "- Gradients\n" +
+                        "- Hover animations\n" +
+                        "- Scroll animations\n" +
+                        "- Section reveal animations\n" +
+                        "- Fully responsive\n" +
+                        "\n" +
+                        "🧠 CONTENT RULES\n" +
+                        "Use the user's idea as the business theme\n" +
+                        "Write realistic professional marketing content\n" +
+                        "No lorem ipsum\n" +
+                        "No placeholders\n" +
+                        "No \"Hello world\"\n" +
+                        "\n" +
+                        "⚙️ INTERACTIVITY RULES\n" +
+                        "Must include:\n" +
+                        "- Smooth scrolling\n" +
+                        "- Navbar scroll effect\n" +
+                        "- Button hover animations\n" +
+                        "- Section reveal animation\n" +
+                        "- Simple JS animations\n" +
+                        "\n" +
+                        "🧱 TECH RULES\n" +
+                        "❌ No React\n" +
+                        "❌ No Tailwind\n" +
+                        "❌ No Bootstrap\n" +
+                        "❌ No frameworks\n" +
+                        "❌ No external JS or CSS libraries\n" +
+                        "❌ No CDN dependencies\n" +
+                        "\n" +
+                        "🏷️ BRANDING RULE\n" +
+                        "If user asks who you are or who built this:\n" +
+                        "Always say:\n" +
+                        "I am ForgeAI, an AI website builder created by the ForgeAI team.\n" +
+                        "\n" +
+                        "🧨 HARD FAIL CONDITIONS\n" +
+                        "Do NOT return code fences\n" +
+                        "Do NOT return explanations\n" +
+                        "Do NOT return markdown\n" +
+                        "Do NOT return partial files\n" +
+                        "\n" +
+                        "CURRENT FILES:\n%s\n" +
+                        "\n" +
+                        "USER INSTRUCTION: %s\n" +
+                        "\n" +
+                        "Regenerate ALL files fully based on the user's instruction.\n" +
+                        "Use proper escaping for double quotes and newlines in the JSON content values.",
+                filesContext.toString(),
+                userInstruction);
+    }
+
+    private void validateFiles(List<GenerateResponse.GeneratedFile> files) {
+        if (files == null || files.size() != 3) {
+            throw new RuntimeException(
+                    "Invalid file count. Expected exactly 3 files (index.html, styles.css, script.js), but got: " +
+                            (files == null ? "null" : files.size()));
+        }
+
+        boolean hasIndexHtml = false;
+        boolean hasStylesCss = false;
+        boolean hasScriptJs = false;
+
+        for (GenerateResponse.GeneratedFile file : files) {
+            String path = file.getPath().toLowerCase();
+            if (path.equals("index.html")) {
+                hasIndexHtml = true;
+            } else if (path.equals("styles.css")) {
+                hasStylesCss = true;
+            } else if (path.equals("script.js")) {
+                hasScriptJs = true;
+            }
+        }
+
+        if (!hasIndexHtml || !hasStylesCss || !hasScriptJs) {
+            throw new RuntimeException(
+                    "Invalid files. Must contain exactly: index.html, styles.css, script.js. " +
+                            "Found: " + files.stream()
+                                    .map(f -> f.getPath())
+                                    .reduce((a, b) -> a + ", " + b)
+                                    .orElse("none"));
+        }
+    }
+
+    private record GeneratedFilesWrapper(List<GenerateResponse.GeneratedFile> files) {
     }
 }
